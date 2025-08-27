@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         Draggable JS Executor (Dark + Mobile)
+// @name         Draggable JS Executor (Dark + Mobile + Line Numbers)
 // @namespace    http://tampermonkey.net/
-// @version      1.1
-// @description  Floating draggable black box with purple border for JS execution (works on PC & mobile)
+// @version      1.2
+// @description  Floating draggable black box with purple border, line numbers, and black-purple shadow (works on PC & mobile)
 // @author       You
 // @match        *://*/*
 // @grant        none
@@ -16,7 +16,10 @@
     box.id = "jsExecutorBox";
     box.innerHTML = `
       <div id="jsExecHeader">JS Runner</div>
-      <textarea id="jsExecInput" placeholder="Paste JS code or GitHub/raw link..."></textarea>
+      <div id="jsExecContent">
+        <div id="lineNumbers"></div>
+        <textarea id="jsExecInput" placeholder="Paste JS code or GitHub/raw link..."></textarea>
+      </div>
       <div id="jsExecBtnBox">
         <button id="jsExecRun">Execute</button>
         <button id="jsExecClear">Clear</button>
@@ -24,48 +27,73 @@
     `;
     document.body.appendChild(box);
 
-    // --- Styles (Dark Mode) ---
+    // --- Styles (Dark Mode + Black to Purple Shadow + Line Numbers) ---
     const style = document.createElement("style");
     style.textContent = `
       #jsExecutorBox {
         position: fixed;
         top: 50px;
         left: 50px;
-        width: 260px;
-        background: #000; /* Dark black background */
-        border: 2px solid purple; /* Purple stroke */
+        width: 300px;
+        background: #000;
+        border: 2px solid purple;
         border-radius: 6px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.6);
+        box-shadow:
+          0 0 12px 2px purple,
+          0 0 20px 6px black;
         font-family: Arial, sans-serif;
         font-size: 13px;
         z-index: 999999;
         resize: both;
         overflow: hidden;
         color: white;
+        user-select: none;
       }
       #jsExecHeader {
         padding: 6px;
-        background: purple; /* Purple header */
+        background: purple;
         color: white;
         cursor: move;
         font-size: 14px;
+      }
+      #jsExecContent {
+        display: flex;
+        background: #000;
+      }
+      #lineNumbers {
+        padding: 6px 4px 6px 8px;
+        background: #111;
+        border-right: 2px solid purple;
+        color: #888;
+        font-family: monospace;
+        font-size: 13px;
+        line-height: 1.3em;
         user-select: none;
+        text-align: right;
+        width: 30px;
+        overflow: hidden;
       }
       #jsExecInput {
-        width: 94%;
+        flex: 1;
         height: 90px;
-        margin: 6px;
-        background: #111; /* Slightly lighter black textarea */
-        color: #0f0; /* Green terminal-like text */
-        border: 1px solid purple;
+        margin: 6px 6px 6px 0;
+        background: #111;
+        color: #0f0;
+        border: none;
+        outline: none;
         font-family: monospace;
         font-size: 13px;
         border-radius: 4px;
-        padding: 4px;
+        padding: 4px 6px;
+        line-height: 1.3em;
+        resize: none;
+        overflow-y: scroll;
+        white-space: pre-wrap;
+        word-wrap: break-word;
       }
       #jsExecBtnBox {
         text-align: center;
-        margin-bottom: 6px;
+        margin: 6px;
       }
       #jsExecBtnBox button {
         padding: 5px 10px;
@@ -74,12 +102,21 @@
         border-radius: 4px;
         cursor: pointer;
         font-size: 12px;
-        background: #222; /* Light black contrast */
+        background: #222;
         color: white;
         transition: background 0.2s;
+        user-select: none;
       }
       #jsExecBtnBox button:hover {
-        background: #333; /* Slightly lighter on hover */
+        background: #333;
+      }
+      /* Scrollbar styling for textarea */
+      #jsExecInput::-webkit-scrollbar {
+        width: 8px;
+      }
+      #jsExecInput::-webkit-scrollbar-thumb {
+        background: purple;
+        border-radius: 4px;
       }
     `;
     document.head.appendChild(style);
@@ -108,15 +145,39 @@
         dragging = false;
     }
 
-    // Mouse events
     header.addEventListener("mousedown", startDrag);
     document.addEventListener("mousemove", duringDrag);
     document.addEventListener("mouseup", stopDrag);
 
-    // Touch events (mobile)
     header.addEventListener("touchstart", startDrag, {passive:false});
     document.addEventListener("touchmove", duringDrag, {passive:false});
     document.addEventListener("touchend", stopDrag);
+
+    // --- Line numbers logic ---
+    const textarea = box.querySelector("#jsExecInput");
+    const lineNumbers = box.querySelector("#lineNumbers");
+
+    function updateLineNumbers() {
+        const linesCount = textarea.value.split('\n').length;
+        let numbers = '';
+        for(let i=1; i <= linesCount; i++) {
+            numbers += i + '\n';
+        }
+        lineNumbers.textContent = numbers;
+    }
+
+    textarea.addEventListener('input', () => {
+        updateLineNumbers();
+        syncScroll();
+    });
+
+    textarea.addEventListener('scroll', syncScroll);
+
+    function syncScroll() {
+        lineNumbers.scrollTop = textarea.scrollTop;
+    }
+
+    updateLineNumbers();
 
     // --- Helper: turn GitHub link -> raw ---
     function toRawGithubLink(url){
@@ -130,8 +191,7 @@
         return url;
     }
 
-    // --- Execution ---
-    const textarea = box.querySelector("#jsExecInput");
+    // --- Execution Buttons ---
     const runBtn = box.querySelector("#jsExecRun");
     const clearBtn = box.querySelector("#jsExecClear");
 
@@ -139,7 +199,6 @@
         let input = textarea.value.trim();
         if(!input) return;
 
-        // If link -> fetch & execute
         if(/^https?:\/\//i.test(input)){
             let link = toRawGithubLink(input);
             try {
@@ -152,12 +211,15 @@
             }
         } else {
             try {
-                eval(input); // Direct code
+                eval(input);
             } catch(err){
                 alert("Execution error: " + err);
             }
         }
     });
 
-    clearBtn.addEventListener("click", ()=> textarea.value = "");
+    clearBtn.addEventListener("click", ()=> {
+        textarea.value = "";
+        updateLineNumbers();
+    });
 })();
