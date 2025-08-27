@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         Draggable JS Executor (Dark + Mobile + Fixed Scroll + Proper Line Numbers)
+// @name         Draggable JS Executor (Dark + Mobile + Fixed Scroll + Proper Line Numbers + No Side Scroll Line)
 // @namespace    http://tampermonkey.net/
-// @version      1.3
-// @description  Floating draggable black box with purple border, line numbers, black-purple shadow; fixes scrolling and numbering issues (PC + mobile)
+// @version      1.4
+// @description  Floating draggable black box with purple border, line numbers, black-purple shadow; fixed scroll; no side scroll line; wider black top panel (PC + mobile)
 // @author       You
 // @match        *://*/*
 // @grant        none
@@ -11,7 +11,6 @@
 (function() {
     'use strict';
 
-    // --- Create container elements ---
     const box = document.createElement("div");
     box.id = "jsExecutorBox";
     box.innerHTML = `
@@ -27,14 +26,13 @@
     `;
     document.body.appendChild(box);
 
-    // --- Styles ---
     const style = document.createElement("style");
     style.textContent = `
       #jsExecutorBox {
         position: fixed;
         top: 50px;
         left: 50px;
-        width: 320px;
+        width: 340px;
         height: 240px;
         background: #000;
         border: 2px solid purple;
@@ -51,12 +49,14 @@
         overflow: hidden;
       }
       #jsExecHeader {
-        padding: 6px;
-        background: purple;
+        padding: 6px 12px;
+        background: #000;
         color: white;
         cursor: move;
         font-size: 14px;
         flex-shrink: 0;
+        width: 100%;
+        box-sizing: border-box;
       }
       #jsExecContent {
         display: flex;
@@ -76,6 +76,7 @@
         text-align: right;
         width: 30px;
         overflow-y: auto;
+        overflow-x: hidden;
         white-space: nowrap;
       }
       #lineNumbers div {
@@ -96,8 +97,11 @@
         line-height: 1.3em;
         resize: none;
         overflow-y: auto;
+        overflow-x: hidden;
         white-space: pre-wrap;
         word-wrap: break-word;
+        scrollbar-width: thin;
+        scrollbar-color: purple transparent;
       }
       #jsExecBtnBox {
         text-align: center;
@@ -119,24 +123,20 @@
       #jsExecBtnBox button:hover {
         background: #333;
       }
-      #jsExecInput::-webkit-scrollbar {
+      #jsExecInput::-webkit-scrollbar, #lineNumbers::-webkit-scrollbar {
         width: 8px;
+        height: 8px;
       }
-      #jsExecInput::-webkit-scrollbar-thumb {
+      #jsExecInput::-webkit-scrollbar-thumb, #lineNumbers::-webkit-scrollbar-thumb {
         background: purple;
         border-radius: 4px;
       }
-      #lineNumbers::-webkit-scrollbar {
-        width: 8px;
-      }
-      #lineNumbers::-webkit-scrollbar-thumb {
-        background: purple;
-        border-radius: 4px;
+      #jsExecInput::-webkit-scrollbar-track, #lineNumbers::-webkit-scrollbar-track {
+        background: transparent;
       }
     `;
     document.head.appendChild(style);
 
-    // --- Dragging ---
     const header = box.querySelector("#jsExecHeader");
     let dragging = false, offsetX=0, offsetY=0;
 
@@ -167,7 +167,6 @@
     document.addEventListener("touchmove", duringDrag, { passive: false });
     document.addEventListener("touchend", stopDrag);
 
-    // --- Line number logic ---
     const textarea = box.querySelector("#jsExecInput");
     const lineNumbers = box.querySelector("#lineNumbers");
 
@@ -192,10 +191,8 @@
         lineNumbers.scrollTop = textarea.scrollTop;
     }
 
-    // Initialize line numbers
     updateLineNumbers();
 
-    // --- Helper: convert GitHub link to raw ---
     function toRawGithubLink(url){
         try {
             if(url.includes("github.com") && !url.includes("raw.githubusercontent.com")){
@@ -207,7 +204,6 @@
         return url;
     }
 
-    // --- Execution buttons ---
     const runBtn = box.querySelector("#jsExecRun");
     const clearBtn = box.querySelector("#jsExecClear");
 
