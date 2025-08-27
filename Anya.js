@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         Draggable JS Executor (Dark + Mobile + Line Numbers)
+// @name         Draggable JS Executor (Dark + Mobile + Fixed Scroll + Proper Line Numbers)
 // @namespace    http://tampermonkey.net/
-// @version      1.2
-// @description  Floating draggable black box with purple border, line numbers, and black-purple shadow (works on PC & mobile)
+// @version      1.3
+// @description  Floating draggable black box with purple border, line numbers, black-purple shadow; fixes scrolling and numbering issues (PC + mobile)
 // @author       You
 // @match        *://*/*
 // @grant        none
@@ -27,14 +27,15 @@
     `;
     document.body.appendChild(box);
 
-    // --- Styles (Dark Mode + Black to Purple Shadow + Line Numbers) ---
+    // --- Styles ---
     const style = document.createElement("style");
     style.textContent = `
       #jsExecutorBox {
         position: fixed;
         top: 50px;
         left: 50px;
-        width: 300px;
+        width: 320px;
+        height: 240px;
         background: #000;
         border: 2px solid purple;
         border-radius: 6px;
@@ -44,10 +45,10 @@
         font-family: Arial, sans-serif;
         font-size: 13px;
         z-index: 999999;
-        resize: both;
-        overflow: hidden;
-        color: white;
         user-select: none;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
       }
       #jsExecHeader {
         padding: 6px;
@@ -55,10 +56,13 @@
         color: white;
         cursor: move;
         font-size: 14px;
+        flex-shrink: 0;
       }
       #jsExecContent {
         display: flex;
+        flex-grow: 1;
         background: #000;
+        overflow: hidden;
       }
       #lineNumbers {
         padding: 6px 4px 6px 8px;
@@ -71,11 +75,15 @@
         user-select: none;
         text-align: right;
         width: 30px;
-        overflow: hidden;
+        overflow-y: auto;
+        white-space: nowrap;
+      }
+      #lineNumbers div {
+        height: 1.3em;
+        line-height: 1.3em;
       }
       #jsExecInput {
         flex: 1;
-        height: 90px;
         margin: 6px 6px 6px 0;
         background: #111;
         color: #0f0;
@@ -87,13 +95,14 @@
         padding: 4px 6px;
         line-height: 1.3em;
         resize: none;
-        overflow-y: scroll;
+        overflow-y: auto;
         white-space: pre-wrap;
         word-wrap: break-word;
       }
       #jsExecBtnBox {
         text-align: center;
         margin: 6px;
+        flex-shrink: 0;
       }
       #jsExecBtnBox button {
         padding: 5px 10px;
@@ -110,7 +119,6 @@
       #jsExecBtnBox button:hover {
         background: #333;
       }
-      /* Scrollbar styling for textarea */
       #jsExecInput::-webkit-scrollbar {
         width: 8px;
       }
@@ -118,30 +126,36 @@
         background: purple;
         border-radius: 4px;
       }
+      #lineNumbers::-webkit-scrollbar {
+        width: 8px;
+      }
+      #lineNumbers::-webkit-scrollbar-thumb {
+        background: purple;
+        border-radius: 4px;
+      }
     `;
     document.head.appendChild(style);
 
-    // --- Dragging logic (PC + Mobile) ---
+    // --- Dragging ---
     const header = box.querySelector("#jsExecHeader");
     let dragging = false, offsetX=0, offsetY=0;
 
-    function startDrag(e){
+    function startDrag(e) {
         dragging = true;
-        let clientX = e.touches ? e.touches[0].clientX : e.clientX;
-        let clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
         offsetX = clientX - box.offsetLeft;
         offsetY = clientY - box.offsetTop;
         e.preventDefault();
     }
-    function duringDrag(e){
-        if(dragging){
-            let clientX = e.touches ? e.touches[0].clientX : e.clientX;
-            let clientY = e.touches ? e.touches[0].clientY : e.clientY;
-            box.style.left = (clientX - offsetX) + "px";
-            box.style.top = (clientY - offsetY) + "px";
-        }
+    function duringDrag(e) {
+        if(!dragging) return;
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        box.style.left = (clientX - offsetX) + "px";
+        box.style.top = (clientY - offsetY) + "px";
     }
-    function stopDrag(){
+    function stopDrag() {
         dragging = false;
     }
 
@@ -149,21 +163,22 @@
     document.addEventListener("mousemove", duringDrag);
     document.addEventListener("mouseup", stopDrag);
 
-    header.addEventListener("touchstart", startDrag, {passive:false});
-    document.addEventListener("touchmove", duringDrag, {passive:false});
+    header.addEventListener("touchstart", startDrag, { passive: false });
+    document.addEventListener("touchmove", duringDrag, { passive: false });
     document.addEventListener("touchend", stopDrag);
 
-    // --- Line numbers logic ---
+    // --- Line number logic ---
     const textarea = box.querySelector("#jsExecInput");
     const lineNumbers = box.querySelector("#lineNumbers");
 
     function updateLineNumbers() {
-        const linesCount = textarea.value.split('\n').length;
-        let numbers = '';
-        for(let i=1; i <= linesCount; i++) {
-            numbers += i + '\n';
+        const lines = textarea.value.split('\n').length || 1;
+        lineNumbers.innerHTML = '';
+        for(let i=1; i<=lines; i++) {
+            const div = document.createElement('div');
+            div.textContent = i;
+            lineNumbers.appendChild(div);
         }
-        lineNumbers.textContent = numbers;
     }
 
     textarea.addEventListener('input', () => {
@@ -177,9 +192,10 @@
         lineNumbers.scrollTop = textarea.scrollTop;
     }
 
+    // Initialize line numbers
     updateLineNumbers();
 
-    // --- Helper: turn GitHub link -> raw ---
+    // --- Helper: convert GitHub link to raw ---
     function toRawGithubLink(url){
         try {
             if(url.includes("github.com") && !url.includes("raw.githubusercontent.com")){
@@ -191,11 +207,11 @@
         return url;
     }
 
-    // --- Execution Buttons ---
+    // --- Execution buttons ---
     const runBtn = box.querySelector("#jsExecRun");
     const clearBtn = box.querySelector("#jsExecClear");
 
-    runBtn.addEventListener("click", async ()=>{
+    runBtn.addEventListener("click", async () => {
         let input = textarea.value.trim();
         if(!input) return;
 
@@ -218,7 +234,7 @@
         }
     });
 
-    clearBtn.addEventListener("click", ()=> {
+    clearBtn.addEventListener("click", () => {
         textarea.value = "";
         updateLineNumbers();
     });
