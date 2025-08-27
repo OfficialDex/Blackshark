@@ -1,14 +1,17 @@
-here// ==UserScript==
-// @name         Draggable JS Executor (Mobile Friendly)
+// ==UserScript==
+// @name         Draggable JS Executor (Dark + Mobile)
 // @namespace    http://tampermonkey.net/
-// @version      1.2
-// @description  Floating draggable box to paste/execute JS or GitHub/raw links, full mobile/desktop draggable, black+purple UI
+// @version      1.1
+// @description  Floating draggable black box with purple border for JS execution (works on PC & mobile)
 // @author       You
 // @match        *://*/*
 // @grant        none
 // ==/UserScript==
+
 (function() {
     'use strict';
+
+    // --- Create container elements ---
     const box = document.createElement("div");
     box.id = "jsExecutorBox";
     box.innerHTML = `
@@ -20,6 +23,8 @@ here// ==UserScript==
       </div>
     `;
     document.body.appendChild(box);
+
+    // --- Styles (Dark Mode) ---
     const style = document.createElement("style");
     style.textContent = `
       #jsExecutorBox {
@@ -27,36 +32,34 @@ here// ==UserScript==
         top: 50px;
         left: 50px;
         width: 260px;
-        background: #000;
-        border: 1px solid purple;
+        background: #000; /* Dark black background */
+        border: 2px solid purple; /* Purple stroke */
         border-radius: 6px;
-        box-shadow: 0 2px 8px rgba(128,0,128,0.7);
-        font-family: Arial,sans-serif;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.6);
+        font-family: Arial, sans-serif;
         font-size: 13px;
         z-index: 999999;
         resize: both;
         overflow: hidden;
-        color: #e0e0e0;
+        color: white;
       }
       #jsExecHeader {
         padding: 6px;
-        background: #4b0082;
+        background: purple; /* Purple header */
         color: white;
-        cursor: grab;
+        cursor: move;
         font-size: 14px;
-        font-weight: bold;
         user-select: none;
-        border-bottom: 1px solid purple;
       }
       #jsExecInput {
         width: 94%;
         height: 90px;
         margin: 6px;
+        background: #111; /* Slightly lighter black textarea */
+        color: #0f0; /* Green terminal-like text */
+        border: 1px solid purple;
         font-family: monospace;
         font-size: 13px;
-        background: #111;
-        color: #e0e0e0;
-        border: 1px solid purple;
         border-radius: 4px;
         padding: 4px;
       }
@@ -71,86 +74,90 @@ here// ==UserScript==
         border-radius: 4px;
         cursor: pointer;
         font-size: 12px;
-        background: #1a1a1a;
-        color: #e0e0e0;
-        transition: background 0.2s,color 0.2s;
+        background: #222; /* Light black contrast */
+        color: white;
+        transition: background 0.2s;
       }
       #jsExecBtnBox button:hover {
-        background: #2c2c2c;
-        color: #fff;
+        background: #333; /* Slightly lighter on hover */
       }
-      #jsExecRun { border-color: #6a0dad; }
-      #jsExecClear { border-color: #9400d3; }
     `;
     document.head.appendChild(style);
+
+    // --- Dragging logic (PC + Mobile) ---
     const header = box.querySelector("#jsExecHeader");
-    let dragging = false, offsetX = 0, offsetY = 0;
-    header.addEventListener('mousedown', function(e) {
+    let dragging = false, offsetX=0, offsetY=0;
+
+    function startDrag(e){
         dragging = true;
-        offsetX = e.clientX - box.offsetLeft;
-        offsetY = e.clientY - box.offsetTop;
-        document.body.style.userSelect = "none";
-    });
-    document.addEventListener('mousemove', function(e) {
-        if (dragging) {
-            box.style.left = (e.clientX - offsetX) + "px";
-            box.style.top = (e.clientY - offsetY) + "px";
+        let clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        let clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        offsetX = clientX - box.offsetLeft;
+        offsetY = clientY - box.offsetTop;
+        e.preventDefault();
+    }
+    function duringDrag(e){
+        if(dragging){
+            let clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            let clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            box.style.left = (clientX - offsetX) + "px";
+            box.style.top = (clientY - offsetY) + "px";
         }
-    });
-    document.addEventListener('mouseup', function() {
+    }
+    function stopDrag(){
         dragging = false;
-        document.body.style.userSelect = "";
-    });
-    header.addEventListener('touchstart', function(e) {
-        if (e.touches.length === 1) {
-            dragging = true;
-            offsetX = e.touches[0].clientX - box.offsetLeft;
-            offsetY = e.touches[0].clientY - box.offsetTop;
-            document.body.style.userSelect = "none";
-        }
-    }, {passive:false});
-    document.addEventListener('touchmove', function(e) {
-        if (dragging && e.touches.length === 1) {
-            box.style.left = (e.touches[0].clientX - offsetX) + "px";
-            box.style.top = (e.touches[0].clientY - offsetY) + "px";
-            e.preventDefault();
-        }
-    }, {passive:false});
-    document.addEventListener('touchend', function() {
-        dragging = false;
-        document.body.style.userSelect = "";
-    });
-    function toRawGithubLink(url) {
+    }
+
+    // Mouse events
+    header.addEventListener("mousedown", startDrag);
+    document.addEventListener("mousemove", duringDrag);
+    document.addEventListener("mouseup", stopDrag);
+
+    // Touch events (mobile)
+    header.addEventListener("touchstart", startDrag, {passive:false});
+    document.addEventListener("touchmove", duringDrag, {passive:false});
+    document.addEventListener("touchend", stopDrag);
+
+    // --- Helper: turn GitHub link -> raw ---
+    function toRawGithubLink(url){
         try {
-            if (url.includes("github.com") && !url.includes("raw.githubusercontent.com")) {
-                return url.replace("github.com", "raw.githubusercontent.com").replace("/blob/", "/");
+            if(url.includes("github.com") && !url.includes("raw.githubusercontent.com")){
+                return url
+                    .replace("github.com", "raw.githubusercontent.com")
+                    .replace("/blob/", "/");
             }
         } catch(e){}
         return url;
     }
+
+    // --- Execution ---
     const textarea = box.querySelector("#jsExecInput");
     const runBtn = box.querySelector("#jsExecRun");
     const clearBtn = box.querySelector("#jsExecClear");
+
     runBtn.addEventListener("click", async ()=>{
         let input = textarea.value.trim();
         if(!input) return;
+
+        // If link -> fetch & execute
         if(/^https?:\/\//i.test(input)){
             let link = toRawGithubLink(input);
             try {
                 let res = await fetch(link);
-                if(!res.ok) throw new Error("HTTP error "+res.status);
+                if(!res.ok) throw new Error("HTTP error " + res.status);
                 let code = await res.text();
                 eval(code);
             } catch(err){
-                alert("Error fetching/executing: "+err);
+                alert("Error fetching/executing: " + err);
             }
         } else {
             try {
-                eval(input);
+                eval(input); // Direct code
             } catch(err){
-                alert("Execution error: "+err);
+                alert("Execution error: " + err);
             }
         }
     });
+
     clearBtn.addEventListener("click", ()=> textarea.value = "");
 })();
