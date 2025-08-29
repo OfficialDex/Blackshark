@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         Draggable JS Executor (Dark + Mobile + Fixed Scroll + Proper Line Numbers + No Side Scroll Line)
+// @name         Draggable JS Executor (Full Drag, True Black, No Divider)
 // @namespace    http://tampermonkey.net/
 // @version      1.4
-// @description  Floating draggable black box with purple border, line numbers, black-purple shadow; fixed scroll; no side scroll line; wider black top panel (PC + mobile)
+// @description  Floating draggable black box with purple border, line numbers; drag whole container, unified black header, refined look
 // @author       You
 // @match        *://*/*
 // @grant        none
@@ -10,11 +10,10 @@
 
 (function() {
     'use strict';
-
     const box = document.createElement("div");
     box.id = "jsExecutorBox";
     box.innerHTML = `
-      <div id="jsExecHeader">JS Runner</div>
+      <div id="jsExecHeader"><span>JS Runner</span></div>
       <div id="jsExecContent">
         <div id="lineNumbers"></div>
         <textarea id="jsExecInput" placeholder="Paste JS code or GitHub/raw link..."></textarea>
@@ -32,8 +31,8 @@
         position: fixed;
         top: 50px;
         left: 50px;
-        width: 340px;
-        height: 240px;
+        width: 320px;
+        height: 250px;
         background: #000;
         border: 2px solid purple;
         border-radius: 6px;
@@ -49,25 +48,34 @@
         overflow: hidden;
       }
       #jsExecHeader {
-        padding: 6px 12px;
+        padding: 12px 0 12px 0;
         background: #000;
         color: white;
-        cursor: move;
-        font-size: 14px;
+        cursor: grab;
+        font-size: 16px;
         flex-shrink: 0;
+        justify-content: center;
+        align-items: center;
+        display: flex;
+        border-bottom: 1px solid #222;
+        font-weight: bold;
+        letter-spacing: 0.5px;
         width: 100%;
-        box-sizing: border-box;
+      }
+      #jsExecHeader span {
+        width: 100%;
+        text-align: center;
       }
       #jsExecContent {
         display: flex;
         flex-grow: 1;
         background: #000;
         overflow: hidden;
+        height: 100px;
       }
       #lineNumbers {
         padding: 6px 4px 6px 8px;
         background: #111;
-        border-right: 2px solid purple;
         color: #888;
         font-family: monospace;
         font-size: 13px;
@@ -76,8 +84,8 @@
         text-align: right;
         width: 30px;
         overflow-y: auto;
-        overflow-x: hidden;
         white-space: nowrap;
+        border-right: none;
       }
       #lineNumbers div {
         height: 1.3em;
@@ -97,11 +105,8 @@
         line-height: 1.3em;
         resize: none;
         overflow-y: auto;
-        overflow-x: hidden;
         white-space: pre-wrap;
         word-wrap: break-word;
-        scrollbar-width: thin;
-        scrollbar-color: purple transparent;
       }
       #jsExecBtnBox {
         text-align: center;
@@ -125,51 +130,45 @@
       }
       #jsExecInput::-webkit-scrollbar, #lineNumbers::-webkit-scrollbar {
         width: 8px;
-        height: 8px;
       }
       #jsExecInput::-webkit-scrollbar-thumb, #lineNumbers::-webkit-scrollbar-thumb {
         background: purple;
         border-radius: 4px;
       }
-      #jsExecInput::-webkit-scrollbar-track, #lineNumbers::-webkit-scrollbar-track {
-        background: transparent;
-      }
     `;
     document.head.appendChild(style);
 
-    const header = box.querySelector("#jsExecHeader");
     let dragging = false, offsetX=0, offsetY=0;
-
+    function getXY(e) {
+        return e.touches ? [e.touches[0].clientX, e.touches[0].clientY] : [e.clientX, e.clientY];
+    }
     function startDrag(e) {
         dragging = true;
-        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        const [clientX, clientY] = getXY(e);
         offsetX = clientX - box.offsetLeft;
         offsetY = clientY - box.offsetTop;
+        box.style.cursor = "grabbing";
         e.preventDefault();
     }
     function duringDrag(e) {
         if(!dragging) return;
-        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        const [clientX, clientY] = getXY(e);
         box.style.left = (clientX - offsetX) + "px";
         box.style.top = (clientY - offsetY) + "px";
     }
     function stopDrag() {
         dragging = false;
+        box.style.cursor = "";
     }
-
-    header.addEventListener("mousedown", startDrag);
+    box.addEventListener("mousedown", startDrag);
     document.addEventListener("mousemove", duringDrag);
     document.addEventListener("mouseup", stopDrag);
-
-    header.addEventListener("touchstart", startDrag, { passive: false });
+    box.addEventListener("touchstart", startDrag, { passive: false });
     document.addEventListener("touchmove", duringDrag, { passive: false });
     document.addEventListener("touchend", stopDrag);
 
     const textarea = box.querySelector("#jsExecInput");
     const lineNumbers = box.querySelector("#lineNumbers");
-
     function updateLineNumbers() {
         const lines = textarea.value.split('\n').length || 1;
         lineNumbers.innerHTML = '';
@@ -179,18 +178,14 @@
             lineNumbers.appendChild(div);
         }
     }
-
     textarea.addEventListener('input', () => {
         updateLineNumbers();
         syncScroll();
     });
-
     textarea.addEventListener('scroll', syncScroll);
-
     function syncScroll() {
         lineNumbers.scrollTop = textarea.scrollTop;
     }
-
     updateLineNumbers();
 
     function toRawGithubLink(url){
@@ -203,14 +198,11 @@
         } catch(e){}
         return url;
     }
-
     const runBtn = box.querySelector("#jsExecRun");
     const clearBtn = box.querySelector("#jsExecClear");
-
     runBtn.addEventListener("click", async () => {
         let input = textarea.value.trim();
         if(!input) return;
-
         if(/^https?:\/\//i.test(input)){
             let link = toRawGithubLink(input);
             try {
@@ -229,7 +221,6 @@
             }
         }
     });
-
     clearBtn.addEventListener("click", () => {
         textarea.value = "";
         updateLineNumbers();
