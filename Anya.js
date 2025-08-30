@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         Draggable JS Executor (Full Drag, True Black, No Divider)
+// @name         Draggable JS Executor (Pill Shadow Horizontal Scroll)
 // @namespace    http://tampermonkey.net/
-// @version      1.4
-// @description  Floating draggable black box with purple border, line numbers; drag whole container, unified black header, refined look
+// @version      1.5
+// @description  Draggable black JS executor with pill header, wide purple shadow, no scrollbars, full textarea focus and usability
 // @author       You
 // @match        *://*/*
 // @grant        none
@@ -13,7 +13,11 @@
     const box = document.createElement("div");
     box.id = "jsExecutorBox";
     box.innerHTML = `
-      <div id="jsExecHeader"><span>JS Runner</span></div>
+      <div id="jsPillHeaderBox">
+        <div id="jsPillHeader" tabindex="0">
+          <span contenteditable="true" spellcheck="false" style="outline:none;white-space:nowrap;">JS EXECUTOR PILLED HEADER - DRAG ANYWHERE</span>
+        </div>
+      </div>
       <div id="jsExecContent">
         <div id="lineNumbers"></div>
         <textarea id="jsExecInput" placeholder="Paste JS code or GitHub/raw link..."></textarea>
@@ -31,14 +35,14 @@
         position: fixed;
         top: 50px;
         left: 50px;
-        width: 320px;
-        height: 250px;
+        width: 340px;
+        height: 255px;
         background: #000;
         border: 2px solid purple;
-        border-radius: 6px;
+        border-radius: 11px;
         box-shadow:
-          0 0 12px 2px purple,
-          0 0 20px 6px black;
+          0 0 10px 3px purple,
+          0 0 20px 10px black;
         font-family: Arial, sans-serif;
         font-size: 13px;
         z-index: 999999;
@@ -47,24 +51,47 @@
         flex-direction: column;
         overflow: hidden;
       }
-      #jsExecHeader {
-        padding: 12px 0 12px 0;
-        background: #000;
-        color: white;
-        cursor: grab;
-        font-size: 16px;
-        flex-shrink: 0;
+      #jsPillHeaderBox {
+        display: flex;
         justify-content: center;
         align-items: center;
-        display: flex;
-        border-bottom: 1px solid #222;
-        font-weight: bold;
-        letter-spacing: 0.5px;
         width: 100%;
+        padding-top: 8px;
+        padding-bottom: 12px;
+        background: transparent;
+        flex-shrink: 0;
+        border-radius: 0;
       }
-      #jsExecHeader span {
-        width: 100%;
-        text-align: center;
+      #jsPillHeader {
+        min-width: 150px;
+        max-width: 80vw;
+        width: 92%;
+        padding: 13px 40px 13px 30px;
+        margin: 0 auto;
+        background: #111;
+        color: #a68cff;
+        border-radius: 40px / 30px;
+        font-size: 16px;
+        font-weight: bold;
+        letter-spacing: .8px;
+        border: none;
+        box-shadow: 0 0 24px 7px purple;
+        overflow-x: auto;
+        overflow-y: hidden;
+        white-space: nowrap;
+        outline: none;
+        cursor: grab;
+        transition: box-shadow .2s;
+        scrollbar-width: none;
+        -ms-overflow-style: none;
+      }
+      #jsPillHeader::-webkit-scrollbar {
+        display: none !important;
+        height: 0 !important;
+      }
+      #jsPillHeader:active {
+        cursor: grabbing;
+        box-shadow: 0 0 36px 12px #8000ff;
       }
       #jsExecContent {
         display: flex;
@@ -74,7 +101,7 @@
         height: 100px;
       }
       #lineNumbers {
-        padding: 6px 4px 6px 8px;
+        padding: 6px 4px 6px 10px;
         background: #111;
         color: #888;
         font-family: monospace;
@@ -84,6 +111,7 @@
         text-align: right;
         width: 30px;
         overflow-y: auto;
+        overflow-x: hidden;
         white-space: nowrap;
         border-right: none;
       }
@@ -105,8 +133,8 @@
         line-height: 1.3em;
         resize: none;
         overflow-y: auto;
-        white-space: pre-wrap;
-        word-wrap: break-word;
+        overflow-x: auto;
+        white-space: pre;
       }
       #jsExecBtnBox {
         text-align: center;
@@ -138,11 +166,17 @@
     `;
     document.head.appendChild(style);
 
-    let dragging = false, offsetX=0, offsetY=0;
+    let dragging = false, offsetX=0, offsetY=0, dragStartTarget=null;
     function getXY(e) {
         return e.touches ? [e.touches[0].clientX, e.touches[0].clientY] : [e.clientX, e.clientY];
     }
+    function isInteractive(el) {
+        // Block dragging if the element is the textarea or its children or is being edited
+        return el.closest("#jsExecInput") || el.closest("#jsExecBtnBox");
+    }
     function startDrag(e) {
+        dragStartTarget = e.target;
+        if (isInteractive(dragStartTarget)) return;
         dragging = true;
         const [clientX, clientY] = getXY(e);
         offsetX = clientX - box.offsetLeft;
@@ -166,6 +200,14 @@
     box.addEventListener("touchstart", startDrag, { passive: false });
     document.addEventListener("touchmove", duringDrag, { passive: false });
     document.addEventListener("touchend", stopDrag);
+
+    // Make pill header scrollable (with mousewheel for overflow)
+    const pillHeader = document.getElementById("jsPillHeader");
+    pillHeader.addEventListener('wheel', e => {
+        if (e.deltaX !== 0) return;
+        pillHeader.scrollLeft += e.deltaY;
+        e.preventDefault();
+    }, { passive: false });
 
     const textarea = box.querySelector("#jsExecInput");
     const lineNumbers = box.querySelector("#lineNumbers");
